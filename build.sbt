@@ -209,6 +209,16 @@ lazy val `cats` = { project in file("modules/cats") }.dependsOn(core, api).setti
 )
 
 lazy val parser = { project in file("modules/parser") }.dependsOn(core % "compile->compile;test->test", api).settings(
+
+lazy val `refined` = { project in file("refined") }.dependsOn(core, api).settings(
+  commonSettings,
+
+  name := "scala-jsonschema-refined",
+
+  libraryDependencies += "eu.timepit" %% "refined" % "0.9.10"
+)
+
+lazy val parser = { project in file("parser") }.dependsOn(core % "compile->compile;test->test", api).settings(
   commonSettings,
 
   name := "scala-jsonschema-parser"
@@ -220,6 +230,7 @@ lazy val root = { project in file(".") }.aggregate(
   api,
   parser,
   `joda-time`,
+  `refined`,
   `play-json`,
   `circe-json`,
   `spray-json`,
