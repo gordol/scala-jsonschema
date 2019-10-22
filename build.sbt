@@ -116,7 +116,7 @@ lazy val macros = project in file("macros") dependsOn core settings (
 lazy val api = { project in file("api") }.dependsOn(core, macros).settings(
   commonSettings,
 
-  name := "scala-jsonschema-api"
+  name := "scala-jsonschema-api",
 )
 
 lazy val `play-json` = { project in file("play-json") }.dependsOn(core, api % "compile->compile;test->test").settings(
@@ -185,6 +185,14 @@ lazy val `joda-time` = { project in file("joda-time") }.dependsOn(core, api).set
   libraryDependencies += "joda-time" % "joda-time" % "2.10.3"
 )
 
+lazy val `refined` = { project in file("refined") }.dependsOn(core, api).settings(
+  commonSettings,
+
+  name := "scala-jsonschema-refined",
+
+  libraryDependencies += "eu.timepit" %% "refined" % "0.9.10"
+)
+
 lazy val parser = { project in file("parser") }.dependsOn(core % "compile->compile;test->test", api).settings(
   commonSettings,
 
@@ -197,6 +205,7 @@ lazy val root = { project in file(".") }.aggregate(
   api,
   parser,
   `joda-time`,
+  `refined`,
   `play-json`,
   `circe-json`,
   `spray-json`,
