@@ -85,6 +85,10 @@ object Schema {
 
   final case class `oneof`[T](subTypes: Set[Schema[_]]) extends Schema[T] { def mkCopy() = new `oneof`[T](subTypes) }
 
+  final case class `allof`[T](subTypes: Set[Schema[_]]) extends Schema[T] { override def jsonType: String = subTypes.head.jsonType; def mkCopy() = new `allof`[T](subTypes) }
+
+  final case class `not`[T](tpe: Schema[T]) extends Schema[T] { override def jsonType: String = tpe.jsonType; def mkCopy() = new `not`[T](tpe) }
+
   final case class `ref`[T](sig: String, tpe: Schema[_]) extends Schema[T] { override def jsonType: String = s"$$ref"; def mkCopy() = new `ref`[T](sig, tpe) }
 
   @implicitNotFound("Implicit not found: ValidationBound[${F}, ${T}]. Some of validations doesn't match schema type")
