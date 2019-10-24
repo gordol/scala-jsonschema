@@ -1,6 +1,5 @@
 package com.github.andyglow.jsonschema
 
-import scala.reflect.macros.blackbox
 
 private[jsonschema] trait AST { this: Log with Math =>
   import c.universe._
@@ -13,6 +12,35 @@ private[jsonschema] trait AST { this: Log with Math =>
 
   object Pred {
 
+    // ----------
+    // COLLECTION
+    // ----------
+    case class Size(t: Type, d: Size.Def) extends Pred {
+      import Size.Def._
+      override def tree = d match {
+        case Min(v) if t =:= typeOf[String]    => q"json.Json.schema[$t] withValidation ( `minLength` := $v )"
+        case Min(v)                            => q"json.Json.schema[$t] withValidation ( `minItems` := $v )"
+        case Max(v) if t =:= typeOf[String]    => q"json.Json.schema[$t] withValidation ( `maxLength` := $v )"
+        case Max(v)                            => q"json.Json.schema[$t] withValidation ( `maxItems` := $v )"
+        case Const(v) if t =:= typeOf[String]  => q"json.Json.schema[$t] withValidation ( `minLength` := $v, `maxLength` := $v )"
+        case Const(v)                          => q"json.Json.schema[$t] withValidation ( `minItems` := $v, `maxItems` := $v )"
+      }
+    }
+    object Size {
+      sealed trait Def extends {
+        def v: Int
+      }
+      object Def {
+        case class Min(v: Int) extends Def
+        case class Max(v: Int) extends Def
+        case class Const(v: Int) extends Def
+      }
+    }
+    // -------
+    // GENERIC
+    // -------
+    // case class Eq(t: Type, v: Any) extends Pred
+
     // ------
     // STRING
     // ------
@@ -24,6 +52,18 @@ private[jsonschema] trait AST { this: Log with Math =>
       override def tree = q"`string`[$t](Some(`ipv6`), None)"
     }
 
+    case class MatchesRegex(t: Type, v: String) extends Pred {
+      override def tree = q"`string`[$t](None, Some($v))"
+    }
+
+    case class URI(t: Type) extends Pred {
+      override def tree = q"`string`[$t](Some(`uri`), None)"
+    }
+
+    case class UUID(t: Type) extends Pred {
+      override def tree = q"""`string`[$t](None, Some("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$$"))"""
+    }
+
     // -------
     // NUMERIC
     // -------
@@ -33,9 +73,22 @@ private[jsonschema] trait AST { this: Log with Math =>
     def Neg(t: Type) = Le(t, 0)
     def NonNeg(t: Type) = Ge(t, 0, inclusive = true)
 
-    case class Ge(t: Type, v: Any, inclusive: Boolean = false) extends Pred {
+    sealed trait NumericPred {
+      def v: Any
+      def vv: Double = v.asInstanceOf[Number].doubleValue()
+      def asSize: Size.Def
+    }
+
+    case class Divisable(t: Type, v: Any) extends Pred {
       override def tree = {
         val vv = v.asInstanceOf[Number].doubleValue()
+        q"`number`[$t]() withValidation ( `multipleOf` := $vv )"
+      }
+    }
+
+    case class Ge(t: Type, v: Any, inclusive: Boolean = false) extends Pred with NumericPred {
+      def asSize: Size.Def = Size.Def.Min(vv.toInt)
+      override def tree = {
         inclusive match {
           case true  => q"`number`[$t]() withValidation ( `minimum` := $vv )"
           case false => q"`number`[$t]() withValidation ( `exclusiveMinimum` := $vv )"
@@ -55,9 +108,9 @@ private[jsonschema] trait AST { this: Log with Math =>
       }
     }
 
-    case class Le(t: Type, v: Any, inclusive: Boolean = false) extends Pred {
+    case class Le(t: Type, v: Any, inclusive: Boolean = false) extends Pred with NumericPred {
+      def asSize: Size.Def = Size.Def.Max(vv.toInt)
       override def tree = {
-        val vv = v.asInstanceOf[Number].doubleValue()
         inclusive match {
           case true  => q"`number`[$t]() withValidation ( `maximum` := $vv )"
           case false => q"`number`[$t]() withValidation ( `exclusiveMaximum` := $vv )"

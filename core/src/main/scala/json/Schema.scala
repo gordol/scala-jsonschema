@@ -91,6 +91,9 @@ object Schema {
 
   final case class `ref`[T](sig: String, tpe: Schema[_]) extends Schema[T] { override def jsonType: String = s"$$ref"; def mkCopy() = new `ref`[T](sig, tpe) }
 
+  // TODO
+  // final case class `const`[T](tpe: Schema[_], value: Value) extends Schema[T] { override def jsonType: String = tpe.jsonType }
+
   @implicitNotFound("Implicit not found: ValidationBound[${F}, ${T}]. Some of validations doesn't match schema type")
   trait ValidationBound[F, T] {
     def append(

@@ -10,17 +10,13 @@ private[jsonschema] trait Logic extends Extractors with Log with AST with Math {
 
   def gen(t: Type): Tree = {
 
-    val pred = t match {
+    t match {
       case R(t, p) =>
-        (t.asType.toType, p) match {
-          case P(pp) => pp
-          case _     => err(s"Can't infer Predicate out of ${showRaw(p)}")
+        (t, p) match {
+          case P(pp) => pp.norm.tree
+          case _     => warn(s"Can't infer Predicate out of ${showRaw(p)}"); EmptyTree
         }
-      case _ => err(s"Can't infer Refined out of ${showRaw(t)}")
+      case _ => warn(s"Can't infer Refined out of ${showRaw(t)}"); EmptyTree
     }
-
-    dbg(pred.toString + " ----> " + pred.norm.toString)
-
-    pred.tree
   }
 }

@@ -6,6 +6,8 @@ import eu.timepit.refined.api.Refined
 import eu.timepit.refined.auto._
 import eu.timepit.refined.boolean._
 import eu.timepit.refined.numeric._
+import eu.timepit.refined.generic._
+import eu.timepit.refined.collection._
 import eu.timepit.refined.string._
 import json.schema.Version.Draft04
 
@@ -96,6 +98,12 @@ object _Example {
 //      val s1 = RefinedMacro.refined[N]
 //      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
 //    }
+//
+//    {
+//      type N = Double Refined Divisible[W.`23.6`.T]
+//      val s1 = RefinedMacro.refined[N]
+//      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+//    }
 
     // ----------------
     // string
@@ -112,14 +120,59 @@ object _Example {
 //      val s1 = RefinedMacro.refined[N]
 //      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
 //    }
+//
+//    {
+//      type N = Refined[String, MatchesRegex[W.`".*"`.T]]
+//      val s1 = RefinedMacro.refined[N]
+//      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+//    }
 
+//    {
+//      type N = Refined[String, Not[IPv6]]
+//      val s1 = RefinedMacro.refined[N]
+//      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+//    }
+//    {
+//      type N = Refined[String, IPv6 Or IPv4]
+//      val s1 = RefinedMacro.refined[N]
+//      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+//    }
+
+    // -----------
+    // collections
+    // -----------
     {
-      type N = Refined[String, Not[IPv6]]
+      type N = Refined[List[String], MinSize[W.`5`.T]]
       val s1 = RefinedMacro.refined[N]
       println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
     }
+
     {
-      type N = Refined[String, IPv6 Or IPv4]
+      type N = Refined[String, MinSize[W.`5`.T]]
+      val s1 = RefinedMacro.refined[N]
+      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+    }
+
+    {
+      type N = Refined[List[String], MaxSize[W.`5`.T]]
+      val s1 = RefinedMacro.refined[N]
+      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+    }
+
+    {
+      type N = Refined[String, MaxSize[W.`5`.T]]
+      val s1 = RefinedMacro.refined[N]
+      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+    }
+
+    {
+      type N = Refined[String, Size[W.`5`.T]]
+      val s1 = RefinedMacro.refined[N]
+      println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
+    }
+
+    {
+      type N = Refined[String, Size[Not[Less[W.`5`.T]]]]
       val s1 = RefinedMacro.refined[N]
       println(JsonFormatter.format(AsValue.schema(s1, Draft04())))
     }

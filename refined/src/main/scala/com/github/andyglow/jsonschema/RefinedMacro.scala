@@ -11,6 +11,8 @@ class RefinedMacro(val c: blackbox.Context) extends Logic {
 
     val tree = gen(tt)
 
+    dbg(showCode(tree))
+
     c.Expr[json.Schema[T]](
       q"""
         import json.Schema._
