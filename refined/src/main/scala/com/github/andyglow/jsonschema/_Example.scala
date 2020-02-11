@@ -10,6 +10,7 @@ import eu.timepit.refined.generic._
 import eu.timepit.refined.collection._
 import eu.timepit.refined.string._
 import json.schema.Version.Draft04
+import refined._
 
 object _Example {
 

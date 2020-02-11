@@ -1,12 +1,9 @@
-package com.github.andyglow.jsonschema
+package com.github.andyglow.jsonschema.refined
 
 import scala.reflect.macros.blackbox
 
-private[jsonschema] trait Log {
-
-  val c: blackbox.Context
-
-  val debugEnabled = false
+private[jsonschema] trait Log { this: HasContext =>
+  val debugEnabled = true
 
   val dbg: String => Unit = if (debugEnabled) c.info(c.enclosingPosition, _, force = true) else _ => ()
 

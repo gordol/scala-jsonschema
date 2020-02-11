@@ -1,4 +1,4 @@
-package com.github.andyglow.jsonschema
+package com.github.andyglow.jsonschema.refined
 
 private[jsonschema] trait Math { this: Log =>
 

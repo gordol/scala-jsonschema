@@ -1,13 +1,12 @@
-package com.github.andyglow.jsonschema
+package com.github.andyglow.jsonschema.refined
 
-import scala.reflect.macros.blackbox
 import eu.timepit.refined._
 
+import scala.reflect.macros.blackbox
 
-private[jsonschema] trait Extractors { this: Log with AST =>
+
+private[jsonschema] trait Extractors { this: Log with AST with HasContext =>
   import Pred._
-
-  val c: blackbox.Context
   import c.universe._
 
   private lazy val `Refined` = typeOf[eu.timepit.refined.api.Refined[_, _]].typeSymbol
@@ -124,7 +123,13 @@ private[jsonschema] trait Extractors { this: Log with AST =>
           }
         }
 
-        Ex unapply p
+        val pp = Ex unapply p map { _.norm }
+        if (debugEnabled)
+          pp foreach { pp =>
+            dbg(s"Ex.unapply: final normalized result ${showRaw(pp)}")
+          }
+
+        pp
       }
     }
   }

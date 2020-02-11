@@ -1,7 +1,8 @@
-package com.github.andyglow.jsonschema
+package com.github.andyglow.jsonschema.refined
 
+import scala.reflect.macros.blackbox
 
-private[jsonschema] trait AST { this: Log with Math =>
+private[jsonschema] trait AST { this: Math with HasContext =>
   import c.universe._
 
   sealed trait Pred {
@@ -141,8 +142,8 @@ private[jsonschema] trait AST { this: Log with Math =>
         def compile(p: Pred): Pred = p match {
           case Ge(t, v, i) => Le(t, v, !i)
           case Le(t, v, i) => Ge(t, v, !i)
-          case p: Not => compile(p.p)
-          case p => Not(p) // there is no way to simplify it better
+          case np: Not     => compile(np.p)
+          case np          => Not(np) // there is no way to simplify it better
         }
 
         compile(p)

@@ -1,8 +1,8 @@
-package com.github.andyglow.jsonschema
+package com.github.andyglow.jsonschema.refined
 
 import scala.reflect.macros.blackbox
 
-private[jsonschema] trait Logic extends Extractors with Log with AST with Math {
+private[jsonschema] trait Logic extends Extractors with Log with AST with Math with HasContext {
   import refined._
 
   val c: blackbox.Context
