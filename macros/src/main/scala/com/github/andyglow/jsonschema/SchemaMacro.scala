@@ -1,8 +1,5 @@
 package com.github.andyglow.jsonschema
 
-import java.net.{URI, URL}
-import java.util.UUID
-
 import com.github.andyglow.json.ToValue
 
 import scala.reflect.macros.blackbox
@@ -15,74 +12,29 @@ object SchemaMacro {
 
     val jsonPkg     = q"_root_.json"
     val intJsonPkg  = q"_root_.com.github.andyglow.json"
-    val scalaPkg    = q"_root_.scala"
     val schemaObj   = q"$jsonPkg.Schema"
 
-    val subject             = weakTypeOf[T]
-    val optionTpe           = weakTypeOf[Option[_]]
-    val toValueTpe          = weakTypeOf[ToValue[_]]
-    val setTpe              = weakTypeOf[Set[_]]
-    val jsonTypeConstructor = weakTypeOf[json.Schema[_]].typeConstructor
-    val jsonSubject         = appliedType(jsonTypeConstructor, subject)
+    val subject               = weakTypeOf[T]
+    val optionTpe             = weakTypeOf[Option[_]]
+    val toValueTpe            = weakTypeOf[ToValue[_]]
+    val setTpe                = weakTypeOf[Set[_]]
+    val schemaTypeConstructor = weakTypeOf[json.Schema[_]].typeConstructor
+    val schemaSubject         = appliedType(schemaTypeConstructor, subject)
+    val predefTypeConstructor = weakTypeOf[json.Schema.Predefined[_]].typeConstructor
+    val predefSubject         = appliedType(predefTypeConstructor, subject)
 
     def resolve(tpe: Type, stack: List[Type]): Tree = {
       if (stack contains tpe) c.error(c.enclosingPosition, s"cyclic dependency for $tpe")
 
-      val integer = q"$schemaObj.`integer`"
-      val number  = q"$schemaObj.`number`"
-      val string  = q"$schemaObj.`string`"
-      val some    = q"$scalaPkg.Some"
-      val none    = q"$scalaPkg.None"
-
       def genTree: Tree = tpe match {
-        // boolean
-        case x if x =:= typeOf[Boolean]                 => q"$schemaObj.`boolean`"
-
-        // numeric
-        case x if x =:= typeOf[Byte]                    => q"$number[$x]()"
-        case x if x =:= typeOf[Short]                   => q"$number[$x]()"
-        case x if x =:= typeOf[Int]                     => integer
-        case x if x =:= typeOf[Double]                  => q"$number[$x]()"
-        case x if x =:= typeOf[Float]                   => q"$number[$x]()"
-        case x if x =:= typeOf[Long]                    => q"$number[$x]()"
-        case x if x =:= typeOf[BigInt]                  => q"$number[$x]()"
-        case x if x =:= typeOf[BigDecimal]              => q"$number[$x]()"
-
-        // string
-        case x if x =:= typeOf[String]                  => q"$string[$scalaPkg.Predef.String]($none, $none)"
-        case x if x =:= typeOf[Char]                    => q"""$string[$x]($none, $some("^[.\\s]$$"))"""
-
-        // uuid
-        case x if x =:= typeOf[UUID]                    => q"""$string[$x]($none, $some("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$$"))"""
-
-        // url, uri
-        case x if x =:= typeOf[URL]                     => q"$string[$x]($some($string.Format.`uri`), $none)"
-        case x if x =:= typeOf[URI]                     => q"$string[$x]($some($string.Format.`uri`), $none)"
-
-        // date, date-time
-        case x if x =:= typeOf[java.util.Date]          => q"$string[$x]($some($string.Format.`date-time`), $none)"
-        case x if x =:= typeOf[java.sql.Timestamp]      => q"$string[$x]($some($string.Format.`date-time`), $none)"
-        case x if x =:= typeOf[java.time.Instant]       => q"$string[$x]($some($string.Format.`date-time`), $none)"
-        case x if x =:= typeOf[java.time.LocalDateTime] => q"$string[$x]($some($string.Format.`date-time`), $none)"
-        case x if x =:= typeOf[java.sql.Date]           => q"$string[$x]($some($string.Format.`date`), $none)"
-        case x if x =:= typeOf[java.time.LocalDate]     => q"$string[$x]($some($string.Format.`date`), $none)"
-        case x if x =:= typeOf[java.sql.Time]           => q"$string[$x]($some($string.Format.`time`), $none)"
-        case x if x =:= typeOf[java.time.LocalTime]     => q"$string[$x]($some($string.Format.`time`), $none)"
-
-        case x if x <:< typeOf[Map[String, _]]          => SM.gen(x, stack)
-
-        case x if x <:< typeOf[Map[Int, _]]             => IM.gen(x, stack)
-
-        case x if x <:< typeOf[Array[_]]                => Arr.gen(x, stack)
-        case x if x <:< typeOf[Iterable[_]]             => Arr.gen(x, stack)
-
-        case SE(names)                                  => SE.gen(tpe, names)
-
-        case SC(subTypes)                               => SC.gen(tpe, subTypes, stack)
-
-        case CC(fields)                                 => CC.gen(fields, tpe, stack)
-
-        case VC(innerType)                              => VC.gen(innerType, tpe, stack)
+        case SealedEnum(names)                  => SealedEnum.gen(tpe, names)
+        case SealedClasses(subTypes)            => SealedClasses.gen(tpe, subTypes, stack)
+        case CaseClass(fields)                  => CaseClass.gen(fields, tpe, stack)
+        case ValueClass(innerType)              => ValueClass.gen(innerType, tpe, stack)
+        case x if x <:< typeOf[Map[String, _]]  => StringMap.gen(x, stack)
+        case x if x <:< typeOf[Map[Int, _]]     => IntMap.gen(x, stack)
+        case x if x <:< typeOf[Array[_]]        => Arr.gen(x, stack)
+        case x if x <:< typeOf[Iterable[_]]     => Arr.gen(x, stack)
 
         case _ =>
           c.error(c.enclosingPosition, s"schema for $tpe is not supported, ${stack mkString " :: "}")
@@ -95,18 +47,20 @@ object SchemaMacro {
     object Implicit {
 
       def getOrElse(tpe: Type, gen: => Tree): Tree = {
-        val typeType = appliedType(jsonTypeConstructor, tpe)
-
-        if (typeType =:= jsonSubject) gen else {
-          c.inferImplicitValue(typeType) match {
-            case EmptyTree  => gen
-            case x          => q"""$schemaObj.`ref`[$tpe]($jsonPkg.Json.sig[$tpe].signature, $x)"""
+        val sType = appliedType(schemaTypeConstructor, tpe)
+        val pType = appliedType(predefTypeConstructor, tpe)
+        println(s"resolve ${show(pType)}")
+        c.inferImplicitValue(pType) match {
+          case EmptyTree => println(s"Empty, so resolve ${show(sType)}"); c.inferImplicitValue(sType) match {
+            case EmptyTree => println(s"Empty, so generate"); gen
+            case x         => println(s"Found Schema, so make a ref"); q"""$schemaObj.`ref`[$tpe]($jsonPkg.Json.sig[$tpe].signature, $x)"""
           }
+          case x         => println(s"Found Predefined, so point to it"); q"$x.schema"
         }
       }
     }
 
-    object SE {
+    object SealedEnum {
 
       def unapply(tpe: Type): Option[Set[Tree]] = {
 
@@ -141,7 +95,7 @@ object SchemaMacro {
       }
     }
 
-    object SC {
+    object SealedClasses {
 
       def unapply(tpe: Type): Option[Set[Type]] = {
 
@@ -184,15 +138,15 @@ object SchemaMacro {
 
       def gen(tpe: Type, subTypes: Set[Type], stack: List[Type]): Tree = {
         val trees = subTypes collect {
-          case CC(fields)    => CC.gen(fields, tpe, stack)
-          case VC(innerType) => VC.gen(innerType, tpe, stack)
+          case CaseClass(fields)     => CaseClass.gen(fields, tpe, stack)
+          case ValueClass(innerType) => ValueClass.gen(innerType, tpe, stack)
         }
 
         q"$schemaObj.`oneof`[$tpe]($trees)"
       }
     }
 
-    object CC {
+    object CaseClass {
 
       // TODO: add support for case classes defined in method body
 
@@ -284,7 +238,7 @@ object SchemaMacro {
         fields getOrElse Seq.empty
       }
 
-      def unapply(tpe: Type): Option[Seq[CC.Field]] = {
+      def unapply(tpe: Type): Option[Seq[CaseClass.Field]] = {
         val symbol = tpe.typeSymbol
 
         if (symbol.isClass) {
@@ -297,7 +251,7 @@ object SchemaMacro {
           None
       }
 
-      def gen(fieldMap: Seq[CC.Field], tpe: Type, stack: List[Type]): Tree = {
+      def gen(fieldMap: Seq[CaseClass.Field], tpe: Type, stack: List[Type]): Tree = {
         val obj = q"$schemaObj.`object`"
         val fields = fieldMap map { f =>
           val name      = f.name.decodedName.toString
@@ -314,27 +268,7 @@ object SchemaMacro {
       }
     }
 
-    object IM {
-
-      def gen(tpe: Type, stack: List[Type]): Tree = {
-        val componentType = tpe.typeArgs.tail.head
-        val componentJsonType = resolve(componentType, tpe +: stack)
-
-        q"""$schemaObj.`int-map`[$componentType]($componentJsonType)"""
-      }
-    }
-
-    object SM {
-
-      def gen(tpe: Type, stack: List[Type]): Tree = {
-        val componentType = tpe.typeArgs.tail.head
-        val componentJsonType = resolve(componentType, tpe +: stack)
-
-        q"""$schemaObj.`string-map`[$componentType]($componentJsonType)"""
-      }
-    }
-
-    object VC {
+    object ValueClass {
 
       def unapply(x: Type): Option[Type] = {
         val symbol = x.typeSymbol
@@ -354,10 +288,32 @@ object SchemaMacro {
 
       def gen(innerType: Type, tpe: Type, stack: List[Type]): Tree = {
         val x = resolve(innerType, tpe +: stack)
-        x match {
+        val z = x match {
           case q"""$c[$t](..$args)""" => q"$c[$tpe](..$args)"
-          case x => x
+          case x => val st = appliedType(schemaTypeConstructor, tpe); q"$x.asInstanceOf[$st]"
         }
+        println(s"VC.gen ${tpe} [${innerType}] => ${show(x)} => ${show(z)}")
+        z
+      }
+    }
+
+    object IntMap {
+
+      def gen(tpe: Type, stack: List[Type]): Tree = {
+        val componentType = tpe.typeArgs.tail.head
+        val componentJsonType = resolve(componentType, tpe +: stack)
+
+        q"""$schemaObj.`int-map`[$componentType, ${tpe.typeConstructor}]($componentJsonType)"""
+      }
+    }
+
+    object StringMap {
+
+      def gen(tpe: Type, stack: List[Type]): Tree = {
+        val componentType = tpe.typeArgs.tail.head
+        val componentJsonType = resolve(componentType, tpe +: stack)
+
+        q"""$schemaObj.`string-map`[$componentType, ${tpe.typeConstructor}]($componentJsonType)"""
       }
     }
 
@@ -375,7 +331,12 @@ object SchemaMacro {
       }
     }
 
-    val out = resolve(subject, Nil)
+    val out = {
+      val pd = c.inferImplicitValue(predefSubject)
+      if (pd.isEmpty) pd else q"$pd.schema"
+    } orElse c.inferImplicitValue(schemaSubject) orElse resolve(subject, Nil)
+
+    c.info(c.enclosingPosition, show(out), force = false)
 
     c.Expr[json.Schema[T]](out)
   }

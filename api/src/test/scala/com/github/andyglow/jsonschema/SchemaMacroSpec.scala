@@ -41,7 +41,6 @@ class SchemaMacroSpec extends WordSpec {
       import `object`.Field
 
       Json.schema[Bar9] shouldEqual `object`(
-        Field("seq"     , `array`(`string`[String](None, None)), required = false, default = Seq.empty[String]),
         Field("set"     , `set`(`integer`), required = false, default = Set(1, 5, 9)),
         Field("list"    , `array`(`boolean`), required = false, default = List(true, false)),
         Field("vector"  , `array`(`number`[Long]), required = false, default = Vector(9, 7)),
@@ -52,7 +51,7 @@ class SchemaMacroSpec extends WordSpec {
     "generate references for implicitly defined dependencies" in {
       import `object`.Field
 
-      implicit val compoSchema: Schema[Compo1] = Json.schema[Compo1]
+      implicit lazy val compoSchema: Schema[Compo1] = Json.schema[Compo1]
       compoSchema.refName // need this to workaround compiler warning that compoSchema is not used
 
       val schema = Json.schema[Foo4]
@@ -197,16 +196,15 @@ object SchemaMacroSpec {
 
   case class Bar5(foo: Foo5)
 
-  case class Bar6(foo: Iterable[String])
+  case class Bar6(foo: List[String])
 
-  case class Bar7(foo: Iterable[Int])
+  case class Bar7(foo: List[Int])
 
   case class Bar8(foo: String) extends AnyVal
 
   case class Foo9(name: String)
 
   case class Bar9(
-    seq: Seq[String] = Seq.empty,
     set: Set[Int] = Set(1, 5, 9),
     list: List[Boolean] = List(true, false),
     vector: Vector[Long] = Vector(9L, 7L),

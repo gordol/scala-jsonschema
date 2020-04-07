@@ -1,8 +1,12 @@
 package json
 
+import java.net.{URI, URL}
+import java.util.UUID
+
 import com.github.andyglow.json.{ToValue, Value}
 
 import scala.annotation.implicitNotFound
+import scala.language.implicitConversions
 
 
 sealed trait Schema[+T] extends Product {
@@ -61,9 +65,9 @@ object Schema {
 
   final case class `array`[T, C[_]](componentType: Schema[T]) extends Schema[C[T]]
 
-  final case class `string-map`[T](valueType: Schema[T]) extends Schema[Map[String, T]] { override def jsonType = "object" }
+  final case class `string-map`[T, C[_ <: String, _]](valueType: Schema[T]) extends Schema[C[String, T]] { override def jsonType = "object" }
 
-  final case class `int-map`[T](valueType: Schema[T]) extends Schema[Map[Int, T]] { override def jsonType = "object" }
+  final case class `int-map`[T, C[_ <: Int, _]](valueType: Schema[T]) extends Schema[C[Int, T]] { override def jsonType = "object" }
 
   final case class `object`[T](fields: Set[`object`.Field[_]]) extends Schema[T]
 
@@ -71,7 +75,7 @@ object Schema {
 
   final case class `oneof`[T](subTypes: Set[Schema[_]]) extends Schema[T]
 
-  final case class `ref`[T](sig: String, tpe: Schema[T]) extends Schema[T] { override def jsonType: String = s"$$ref" }
+  final case class `ref`[T](sig: String, tpe: Schema[_]) extends Schema[T] { override def jsonType: String = s"$$ref" }
 
   @implicitNotFound("Implicit not found: ValidationBound[${F}, ${T}]. Some of validations doesn't match schema type")
   trait ValidationBound[F, T] {
@@ -95,9 +99,15 @@ object Schema {
     implicit def list[X]: ValidationBound[List[X], Iterable[_]] = mk[List[X], Iterable[_]]
     implicit def vector[X]: ValidationBound[Vector[X], Iterable[_]] = mk[Vector[X], Iterable[_]]
     implicit def set[X]: ValidationBound[Set[X], Iterable[_]] = mk[Set[X], Iterable[_]]
+
+    implicit def chr: ValidationBound[String, Character] = mk[String, Character]
   }
 
   object `string` {
+
+    def apply[T](): `string`[T] = `string`[T](None, None)
+    def apply[T](pattern: String): `string`[T] = `string`[T](None, Some(pattern))
+    def apply[T](format: Format): `string`[T] = `string`[T](Some(format), None)
 
     trait Format extends Product
 
@@ -192,4 +202,34 @@ object Schema {
 
     def apply[T](field: Field[_], xs: Field[_]*): `object`[T] = new `object`((field +: xs.toSeq).toSet)
   }
+
+
+  import Validation._
+  import `string`._
+  final case class Predefined[T](schema: Schema[T])
+  private implicit def toPredef[T](x: Schema[T]): Predefined[T] = Predefined(x)
+  implicit val strS: Predefined[String] = `string`[String]()
+  implicit val chrS: Predefined[Character] = `string`("^[.\\s]$").withValidation(`minLength` := 1, `maxLength` := 1)
+  implicit val boolS: Predefined[Boolean] = `boolean`
+  implicit val byteS: Predefined[Byte] = `number`[Byte]()
+  implicit val shortS: Predefined[Short] = `number`[Short]()
+  implicit val intS: Predefined[Int] = `number`[Int]()
+  implicit val doubleS: Predefined[Double] = `number`[Double]()
+  implicit val floatS: Predefined[Float] = `number`[Float]()
+  implicit val longS: Predefined[Long] = `number`[Long]()
+  implicit val bigIntS: Predefined[BigInt] = `number`[BigInt]()
+  implicit val bigDecimalS: Predefined[BigDecimal] = `number`[BigDecimal]()
+  implicit val uuidS: Predefined[UUID] = `string`[UUID]("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$")
+  implicit val uriS: Predefined[URI] = `string`[URI](Format.`uri`)
+  implicit val urlS: Predefined[URL] = `string`[URL](Format.`uri`)
+  implicit val juDateS: Predefined[java.util.Date] = `string`[java.util.Date](Format.`date-time`)
+  implicit val jsqlTimestampS: Predefined[java.sql.Timestamp] = `string`[java.sql.Timestamp](Format.`date-time`)
+  implicit val instantS: Predefined[java.time.Instant] = `string`[java.time.Instant](Format.`date-time`)
+  implicit val localDateTimeS: Predefined[java.time.LocalDateTime] = `string`[java.time.LocalDateTime](Format.`date-time`)
+  implicit val jsqlDateS: Predefined[java.sql.Date] = `string`[java.sql.Date](Format.`date`)
+  implicit val localDateS: Predefined[java.time.LocalDate] = `string`[java.time.LocalDate](Format.`date`)
+  implicit val jsqlTimeS: Predefined[java.sql.Time] = `string`[java.sql.Time](Format.`time`)
+  implicit val localTimeS: Predefined[java.time.LocalTime] = `string`[java.time.LocalTime](Format.`time`)
+
+  implicit def predefinedSchema[T](implicit predef: Predefined[T]): Schema[T] = predef.schema
 }

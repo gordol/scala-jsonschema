@@ -15,7 +15,7 @@ lazy val commonSettings = Seq(
 
   organizationName := "andyglow",
 
-  scalaVersion := "2.12.10",
+  scalaVersion := "2.11.12",
 
   crossScalaVersions := Seq("2.11.12", "2.12.10", "2.13.1"),
 
@@ -30,6 +30,8 @@ lazy val commonSettings = Seq(
       "-Yno-adapted-args",
       "-Ywarn-dead-code",
       "-Ywarn-numeric-widen",
+//      "-Xlog-implicits",
+      "-Ytyper-debug",
       "-Xfuture",
       "-language:higherKinds")
 
@@ -183,6 +185,14 @@ lazy val `joda-time` = { project in file("joda-time") }.dependsOn(core, api).set
   name := "scala-jsonschema-joda-time",
 
   libraryDependencies += "joda-time" % "joda-time" % "2.10.3"
+)
+
+lazy val `cats` = { project in file("cats") }.dependsOn(core, api).settings(
+  commonSettings,
+
+  name := "scala-jsonschema-cats",
+
+  libraryDependencies += "org.typelevel" %% "cats-core" % "2.0.0"
 )
 
 lazy val parser = { project in file("parser") }.dependsOn(core % "compile->compile;test->test", api).settings(
