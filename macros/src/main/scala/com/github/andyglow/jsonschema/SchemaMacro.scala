@@ -2,12 +2,20 @@ package com.github.andyglow.jsonschema
 
 import com.github.andyglow.json.ToValue
 
-import scala.reflect.macros.blackbox
+import scala.reflect.macros.whitebox
 import scala.util.control.NonFatal
+
 
 object SchemaMacro {
 
-  def impl[T : c.WeakTypeTag](c: blackbox.Context): c.Expr[json.Schema[T]] = {
+  def implPredef[T : c.WeakTypeTag](c: whitebox.Context): c.Expr[json.schema.Predef[T]] = {
+    import c.universe._
+
+    val schema = impl[T](c)
+    c.Expr[json.schema.Predef[T]](q"_root_.json.schema.Predef($schema)")
+  }
+
+  def impl[T : c.WeakTypeTag](c: whitebox.Context): c.Expr[json.Schema[T]] = {
     import c.universe._
 
     val jsonPkg     = q"_root_.json"
@@ -18,47 +26,18 @@ object SchemaMacro {
     val optionTpe             = weakTypeOf[Option[_]]
     val toValueTpe            = weakTypeOf[ToValue[_]]
     val setTpe                = weakTypeOf[Set[_]]
-    val schemaTypeConstructor = weakTypeOf[json.Schema[_]].typeConstructor
-    val schemaSubject         = appliedType(schemaTypeConstructor, subject)
-    val predefTypeConstructor = weakTypeOf[json.Schema.Predefined[_]].typeConstructor
-    val predefSubject         = appliedType(predefTypeConstructor, subject)
+    val schemaTypeConstructor = typeOf[json.Schema[_]].typeConstructor
+    val predefTypeConstructor = typeOf[json.schema.Predef[_]].typeConstructor
 
-    def resolve(tpe: Type, stack: List[Type]): Tree = {
-      if (stack contains tpe) c.error(c.enclosingPosition, s"cyclic dependency for $tpe")
-
-      def genTree: Tree = tpe match {
-        case SealedEnum(names)                  => SealedEnum.gen(tpe, names)
-        case SealedClasses(subTypes)            => SealedClasses.gen(tpe, subTypes, stack)
-        case CaseClass(fields)                  => CaseClass.gen(fields, tpe, stack)
-        case ValueClass(innerType)              => ValueClass.gen(innerType, tpe, stack)
-        case x if x <:< typeOf[Map[String, _]]  => StringMap.gen(x, stack)
-        case x if x <:< typeOf[Map[Int, _]]     => IntMap.gen(x, stack)
-        case x if x <:< typeOf[Array[_]]        => Arr.gen(x, stack)
-        case x if x <:< typeOf[Iterable[_]]     => Arr.gen(x, stack)
-
-        case _ =>
-          c.error(c.enclosingPosition, s"schema for $tpe is not supported, ${stack mkString " :: "}")
-          q"null"
+    def substituteTypes(x: Type, from: List[Symbol], to: List[Type]): Type =
+      try x.substituteTypes(from, to) catch { case NonFatal(_) =>
+        c.abort(c.enclosingPosition, s"Cannot resolve generic type(s) for `$x`. Please provide a custom implicitly accessible json.Schema for it.")
       }
 
-      Implicit.getOrElse(tpe, genTree)
-    }
-
-    object Implicit {
-
-      def getOrElse(tpe: Type, gen: => Tree): Tree = {
-        val sType = appliedType(schemaTypeConstructor, tpe)
-        val pType = appliedType(predefTypeConstructor, tpe)
-        println(s"resolve ${show(pType)}")
-        c.inferImplicitValue(pType) match {
-          case EmptyTree => println(s"Empty, so resolve ${show(sType)}"); c.inferImplicitValue(sType) match {
-            case EmptyTree => println(s"Empty, so generate"); gen
-            case x         => println(s"Found Schema, so make a ref"); q"""$schemaObj.`ref`[$tpe]($jsonPkg.Json.sig[$tpe].signature, $x)"""
-          }
-          case x         => println(s"Found Predefined, so point to it"); q"$x.schema"
-        }
-      }
-    }
+//    implicit class TreeOps(private val x: Tree) {
+//
+//      def fold[A](ifEmpty: => A)(fn: Tree => A): A = if (x.isEmpty) ifEmpty else fn(x)
+//    }
 
     object SealedEnum {
 
@@ -96,7 +75,7 @@ object SchemaMacro {
     }
 
     object SealedClasses {
-
+      
       def unapply(tpe: Type): Option[Set[Type]] = {
 
         def isSealed(x: Type): Boolean = {
@@ -108,11 +87,6 @@ object SchemaMacro {
           val s = x.typeSymbol
           s.isClass && !s.isModuleClass && s.asClass.isCaseClass
         }
-
-        def substituteTypes(x: Type, from: List[Symbol], to: List[Type]): Type =
-          try x.substituteTypes(from, to) catch { case NonFatal(_) =>
-            c.abort(c.enclosingPosition, s"Cannot resolve generic type(s) for `$x`. Please provide a custom implicitly accessible json.Schema for it.")
-          }
 
         // BORROWED:
         // https://github.com/plokhotnyuk/jsoniter-scala/blob/3612fddf19a8ce23ac973d71e85ef02f79c06fff/jsoniter-scala-macros/src/main/scala/com/github/plokhotnyuk/jsoniter_scala/macros/JsonCodecMaker.scala#L351-L365
@@ -220,10 +194,20 @@ object SchemaMacro {
           } else
             None
 
+          val effectiveType =
+            if (isOption) fieldTpe.typeArgs.head
+//            else if (fieldTpe.typeArgs.nonEmpty && fieldTpe.typeSymbol.isClass) {
+//              c.info(c.enclosingPosition, s"FIELD: name=$name, types substituted", force = true)
+//              substituteTypes(fieldTpe, fieldTpe.typeSymbol.asClass.typeParams, fieldTpe.typeArgs)
+//            }
+            else fieldTpe
+
+          c.info(c.enclosingPosition, s"FIELD: name=$name, type: $effectiveType", force = true)
+
           Field(
             name          = TermName(name),
             tpe           = fieldTpe,
-            effectiveTpe  = if (isOption) fieldTpe.typeArgs.head else fieldTpe,
+            effectiveTpe  = effectiveType,
             annotations   = annotationMap.getOrElse(name, List.empty),
             default       = default,
             isOption      = isOption)
@@ -292,7 +276,7 @@ object SchemaMacro {
           case q"""$c[$t](..$args)""" => q"$c[$tpe](..$args)"
           case x => val st = appliedType(schemaTypeConstructor, tpe); q"$x.asInstanceOf[$st]"
         }
-        println(s"VC.gen ${tpe} [${innerType}] => ${show(x)} => ${show(z)}")
+//        println(s"VC.gen ${tpe} [${innerType}] => ${show(x)} => ${show(z)}")
         z
       }
     }
@@ -331,12 +315,74 @@ object SchemaMacro {
       }
     }
 
-    val out = {
-      val pd = c.inferImplicitValue(predefSubject)
-      if (pd.isEmpty) pd else q"$pd.schema"
-    } orElse c.inferImplicitValue(schemaSubject) orElse resolve(subject, Nil)
 
-    c.info(c.enclosingPosition, show(out), force = false)
+    object Implicit {
+
+      sealed trait ImplicitSchema
+      case class FromPredef(x: Tree) extends ImplicitSchema
+      case class FromSchema(x: Tree) extends ImplicitSchema
+      case object NotFound extends ImplicitSchema
+
+      def getOrElse(tpe: Type, gen: => Tree): Tree = {
+        // def debug(msg: String): Unit = c.info(c.enclosingPosition, msg, force = true)
+
+        val sType = appliedType(schemaTypeConstructor, tpe).dealias.widen
+        val pType = appliedType(predefTypeConstructor, tpe).dealias.widen
+
+        // search implicit scope for a schema
+        //
+        // this 2 level implicit search is done this way because Schema/Predef
+        // are covariants which makes impossible use of implicit conversions like
+        // ```
+        // def schemaFromPredef[T](implicit p: Predef[T]): Schema[T] = p.schema
+        // ```
+        // if taken from schema - must be exposed as `ref`
+        // if taken from predef - exposing as is
+        def lookupSchema: ImplicitSchema = {
+          // schema
+          c.inferImplicitValue(sType) match {
+            case EmptyTree =>
+              // predef
+              c.inferImplicitValue(pType) match {
+                case EmptyTree  => NotFound
+                case x          => FromPredef(q"$x.schema")
+              }
+            case x => FromSchema(x)
+          }
+        }
+
+        lookupSchema match {
+          case NotFound      => gen
+          case FromPredef(x) => x
+          case FromSchema(x) => q"""$schemaObj.`ref`[$tpe]($jsonPkg.Json.sig[$tpe].signature, $x)"""
+        }
+      }
+    }
+
+    def resolve(tpe: Type, stack: List[Type]): Tree = {
+      if (stack contains tpe) c.error(c.enclosingPosition, s"cyclic dependency for $tpe")
+
+      def genTree: Tree = tpe match {
+        case x if x <:< typeOf[Map[String, _]]  => StringMap.gen(x, stack)
+        case x if x <:< typeOf[Map[Int, _]]     => IntMap.gen(x, stack)
+        case x if x <:< typeOf[Array[_]]        => Arr.gen(x, stack)
+        case x if x <:< typeOf[Iterable[_]]     => Arr.gen(x, stack)
+        case SealedEnum(names)                  => SealedEnum.gen(tpe, names)
+        case SealedClasses(subTypes)            => SealedClasses.gen(tpe, subTypes, stack)
+        case CaseClass(fields)                  => CaseClass.gen(fields, tpe, stack)
+        case ValueClass(innerType)              => ValueClass.gen(innerType, tpe, stack)
+
+        case _ =>
+          c.error(c.enclosingPosition, s"schema for $tpe is not supported, ${stack mkString " :: "}")
+          q"null"
+      }
+
+      Implicit.getOrElse(tpe, genTree)
+    }
+
+    val out = resolve(subject, Nil)
+
+    // c.info(c.enclosingPosition, show(out), force = false)
 
     c.Expr[json.Schema[T]](out)
   }

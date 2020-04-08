@@ -14,18 +14,11 @@ object TypeSignatureMacro {
   private[jsonschema] def typeSig(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
-//    def compute(tpe: c.universe.Type): String = {
-//      val localName = tpe.typeSymbol.fullName
-//      if (tpe.typeArgs.isEmpty) localName else {
-//        localName + s"[${tpe.typeArgs map compute mkString ","}]"
-//      }
-//    }
-
     def compute(tpe: c.universe.Type): String = {
-      // c.info(c.enclosingPosition, showRaw(tpe), force = true)
+//      c.info(c.enclosingPosition, showRaw(tpe), force = true)
 
       tpe match {
-        case SingleType(_, name)                            => name.fullName
+        case tpe: SingleType                                => tpe.typeSymbol.fullName
         case TypeRef(_, name, Nil)                          => name.fullName
         case ExistentialType(_, TypeRef(_, name, Nil))      => name.fullName
         case TypeRef(_, name, typeargs)                     => name.fullName + s"[${typeargs map compute mkString ","}]"

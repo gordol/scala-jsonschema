@@ -15,7 +15,7 @@ lazy val commonSettings = Seq(
 
   organizationName := "andyglow",
 
-  scalaVersion := "2.11.12",
+  scalaVersion := "2.12.10",
 
   crossScalaVersions := Seq("2.11.12", "2.12.10", "2.13.1"),
 
@@ -31,7 +31,7 @@ lazy val commonSettings = Seq(
       "-Ywarn-dead-code",
       "-Ywarn-numeric-widen",
 //      "-Xlog-implicits",
-      "-Ytyper-debug",
+//      "-Ytyper-debug",
       "-Xfuture",
       "-language:higherKinds")
 
@@ -103,7 +103,10 @@ lazy val commonSettings = Seq(
 lazy val core = { project in file("core") }.settings(
   commonSettings,
 
-  name := "scala-jsonschema-core"
+  name := "scala-jsonschema-core",
+
+  libraryDependencies ++= Seq(
+    (scalaVersion apply ("org.scala-lang" % "scala-reflect" % _ % Compile)).value.withSources.withJavadoc)
 )
 
 lazy val macros = project in file("macros") dependsOn core settings (

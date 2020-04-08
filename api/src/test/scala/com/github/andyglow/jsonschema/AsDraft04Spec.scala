@@ -85,7 +85,7 @@ class AsDraft04Spec extends WordSpec {
     }
 
     "emit Set" in {
-      asDraft04(`set`(`string`[String](None, None))) shouldEqual obj(
+      asDraft04(`set`[String, Set](`string`[String](None, None))) shouldEqual obj(
         "type"        -> "array",
         "items"       -> obj("type" -> "string"),
         "uniqueItems" -> true)
@@ -249,12 +249,12 @@ class AsDraft04Spec extends WordSpec {
             "maxItems" -> 20))
       }
 
-      "array" in arrCase(Json.schema[Array[String]])
+      "array" in arrCase[Array[String]](Json.schema[Array[String]])
       // "iterable" in arrCase(Json.schema[Iterable[String]])
       // "seq" in arrCase(Json.schema[Seq[String]])
-      "list" in arrCase(Json.schema[List[String]])
-      "vector" in arrCase(Json.schema[Vector[String]])
-      "set" in arrCase(Json.schema[Set[String]])
+      "list" in arrCase[List[String]](Json.schema[List[String]])
+      "vector" in arrCase[Vector[String]](Json.schema[Vector[String]])
+      "set" in arrCase[Set[String]](Json.schema[Set[String]])
 
       "map" in {
         asDraft04 {

@@ -51,18 +51,24 @@ class SchemaMacroSpec extends WordSpec {
     "generate references for implicitly defined dependencies" in {
       import `object`.Field
 
-      implicit lazy val compoSchema: Schema[Compo1] = Json.schema[Compo1]
-      compoSchema.refName // need this to workaround compiler warning that compoSchema is not used
+      val compoSchema: Schema[Compo1] = Json.schema[Compo1]
 
-      val schema = Json.schema[Foo4]
+      {
+        implicit def _compoSchema: Schema[Compo1] = compoSchema
 
-      schema shouldEqual `object`(
-        Field(
-          "component",
-          `ref`[Compo1](
-            "com.github.andyglow.jsonschema.SchemaMacroSpec.Compo1",
-            `string`[Compo1](None, None)),
-          required = true))
+        // MUTE: local method _compoSchema in value <local SchemaMacroSpec> is never used
+        _compoSchema.refName
+
+        val schema = Json.schema[Foo4]
+
+        schema shouldEqual `object`(
+          Field(
+            "component",
+            `ref`[Compo1](
+              "com.github.andyglow.jsonschema.SchemaMacroSpec.Compo1",
+              `string`[Compo1](None, None)),
+            required = true))
+      }
     }
 
     "generate schema for Sealed Trait Enums" in {
@@ -116,6 +122,7 @@ class SchemaMacroSpec extends WordSpec {
 
     "generate schema for Map which Sealed Family for values" in {
       import `object`.Field
+//      import Json.auto._
 
       Json.schema[Map[String, FooBar]] shouldEqual `string-map`(
         `oneof`(Set(

@@ -49,11 +49,11 @@ object Validation {
 
   final case object `uniqueItems` extends Validation[Iterable[_], Boolean]()(bool.apply)
 
-  final case object `maxProperties` extends Validation[Map[String, _], Int]()(num.apply)
+  final case object `maxProperties` extends Validation[Map[_, _], Int]()(num.apply)
 
-  final case object `minProperties` extends Validation[Map[String, _], Int]()(num.apply)
+  final case object `minProperties` extends Validation[Map[_, _], Int]()(num.apply)
 
-  final case object `patternProperties` extends Validation[Map[String, _], String]()(str.apply)
+  final case object `patternProperties` extends Validation[Map[_, _], String]()(str.apply)
 }
 
 
