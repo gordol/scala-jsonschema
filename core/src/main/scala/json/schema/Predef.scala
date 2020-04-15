@@ -8,7 +8,6 @@ import json.Schema._
 import json.Schema.`string`.Format
 import json.Validation._
 
-import scala.reflect.ClassTag
 
 /** The idea behind Predef is a continuation of the idea about exposing
   * schemas that was found in implicit scope as `ref`. Namely, if schema
@@ -24,7 +23,7 @@ import scala.reflect.ClassTag
 final case class Predef[+T](schema: Schema[T]) extends AnyVal
 
 trait LowPriorityPredefs {
-  implicit def iterableS[F[X] <: Iterable[X], T](implicit p: Predef[T]): Predef[F[T]] = Predef(`array`[T, F](p.schema))
+//  implicit def iterableS[F[_], T](implicit p: Predef[T], ev0: F[T] <:< Iterable[T]): Predef[F[T]] = Predef(`array`[T, F](p.schema))
 }
 object Predef extends LowPriorityPredefs {
   implicit val strS: Predef[String]                            = Predef(`string`[String]())
@@ -50,8 +49,10 @@ object Predef extends LowPriorityPredefs {
   implicit val jsqlTimeS: Predef[java.sql.Time]                = Predef(`string`[java.sql.Time](Format.`time`))
   implicit val localTimeS: Predef[java.time.LocalTime]         = Predef(`string`[java.time.LocalTime](Format.`time`))
 
-  implicit def arrayS[T: ClassTag](implicit p: Predef[T]): Predef[Array[T]] = Predef(`array`[T, Array](p.schema))
+  implicit def arrayS[T](implicit p: Predef[T]): Predef[Array[T]] = Predef(`array`[T, Array](p.schema))
   implicit def setS[T](implicit p: Predef[T]): Predef[Set[T]] = Predef(`set`[T, Set](p.schema))
+  implicit def listS[T](implicit p: Predef[T]): Predef[List[T]] = Predef(`array`[T, List](p.schema))
+  implicit def vectorS[T](implicit p: Predef[T]): Predef[Vector[T]] = Predef(`array`[T, Vector](p.schema))
   implicit def strMapS[T](implicit p: Predef[T]): Predef[Map[String, T]] = Predef(`string-map`[T, Map](p.schema))
   implicit def intMapS[T](implicit p: Predef[T]): Predef[Map[Int, T]] = Predef(`int-map`[T, Map](p.schema))
 }

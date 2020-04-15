@@ -34,7 +34,7 @@ trait LowPriorityCatsSupport {
 
   implicit def nesSchemaFromPredef[T](implicit p: Predef[T]): Predef[NonEmptySet[T]] = mkNEx[T, NonEmptySet](p.schema)
 
-//  implicit def nestSchemaFromPredef[T](implicit p: Predef[T]): Predef[NonEmptyStream[T]] = mkNEx[T, NonEmptyStream](p.schema)
+  implicit def nestSchemaFromPredef[T](implicit p: Predef[T]): Predef[NonEmptyStream[T]] = mkNEx[T, NonEmptyStream](p.schema)
 
   implicit def necSchemaFromPredef[T](implicit p: Predef[T]): Predef[NonEmptyChain[T]] = mkNEx[T, NonEmptyChain](p.schema)
 

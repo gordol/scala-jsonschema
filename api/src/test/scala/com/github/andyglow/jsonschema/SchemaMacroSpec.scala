@@ -14,8 +14,8 @@ class SchemaMacroSpec extends WordSpec {
       import `object`.Field
 
       val expected = `object`(
-        Field("name", `string`[String](None, None), required = true),
-        Field("bar" , `integer`, required = true))
+        Field("name", `string`[String](None, None)),
+        Field("bar" , `integer`))
 
       Json.schema[Foo1] shouldEqual expected
     }
@@ -122,7 +122,6 @@ class SchemaMacroSpec extends WordSpec {
 
     "generate schema for Map which Sealed Family for values" in {
       import `object`.Field
-//      import Json.auto._
 
       Json.schema[Map[String, FooBar]] shouldEqual `string-map`(
         `oneof`(Set(
@@ -141,22 +140,22 @@ class SchemaMacroSpec extends WordSpec {
 
       Json.schema[Bar5] shouldEqual `object`(
         Field("foo", `object`(
-          Field("name", `string`[String](None, None), required = true),
-          Field("bar" , `integer`, required = true))))
+          Field("name", `string`[String](None, None)),
+          Field("bar" , `integer`))))
     }
 
     "generate schema for case class using collection of string" in {
       import `object`.Field
 
       Json.schema[Bar6] shouldEqual `object`(
-        Field("foo", `array`(`string`[String](None, None)), required = true))
+        Field("foo", `array`(`string`[String](None, None))))
     }
 
     "generate schema for case class using collection of integers" in {
       import `object`.Field
 
       Json.schema[Bar7] shouldEqual `object`(
-        Field("foo", `array`(`integer`), required = true))
+        Field("foo", `array`(`integer`)))
     }
 
     "generate schema for value class" in {
@@ -170,7 +169,7 @@ class SchemaMacroSpec extends WordSpec {
 
       Json.schema[Map[String, Int]] shouldEqual `string-map`(`integer`)
 
-      Json.schema[Map[String, Foo9]] shouldEqual `string-map`(`object`(Field("name", `string`[String](None, None), required = true)))
+      Json.schema[Map[String, Foo9]] shouldEqual `string-map`(`object`(Field("name", `string`[String](None, None))))
     }
 
 
@@ -181,7 +180,7 @@ class SchemaMacroSpec extends WordSpec {
 
       Json.schema[Map[Int, Int]] shouldEqual `int-map`(`integer`)
 
-      Json.schema[Map[Int, Foo9]] shouldEqual `int-map`(`object`(Field("name", `string`[String](None, None), required = true)))
+      Json.schema[Map[Int, Foo9]] shouldEqual `int-map`(`object`(Field("name", `string`[String](None, None))))
     }
   }
 

@@ -2,20 +2,21 @@ package com.github.andyglow.jsonschema
 
 import com.github.andyglow.json.ToValue
 
-import scala.reflect.macros.whitebox
+import scala.reflect.NameTransformer
+import scala.reflect.macros.blackbox
 import scala.util.control.NonFatal
 
 
 object SchemaMacro {
 
-  def implPredef[T : c.WeakTypeTag](c: whitebox.Context): c.Expr[json.schema.Predef[T]] = {
+  def implPredef[T : c.WeakTypeTag](c: blackbox.Context): c.Expr[json.schema.Predef[T]] = {
     import c.universe._
 
     val schema = impl[T](c)
     c.Expr[json.schema.Predef[T]](q"_root_.json.schema.Predef($schema)")
   }
 
-  def impl[T : c.WeakTypeTag](c: whitebox.Context): c.Expr[json.Schema[T]] = {
+  def impl[T : c.WeakTypeTag](c: blackbox.Context): c.Expr[json.Schema[T]] = {
     import c.universe._
 
     val jsonPkg     = q"_root_.json"
@@ -29,12 +30,18 @@ object SchemaMacro {
     val schemaTypeConstructor = typeOf[json.Schema[_]].typeConstructor
     val predefTypeConstructor = typeOf[json.schema.Predef[_]].typeConstructor
 
-    def substituteTypes(x: Type, from: List[Symbol], to: List[Type]): Type =
-      try x.substituteTypes(from, to) catch { case NonFatal(_) =>
-        c.abort(c.enclosingPosition, s"Cannot resolve generic type(s) for `$x`. Please provide a custom implicitly accessible json.Schema for it.")
+    def resolveGenericType(x: Type, from: List[Symbol], to: List[Type]): Type = {
+      try x.substituteTypes(from, to) catch {
+        case NonFatal(_) =>
+          c.abort(
+            c.enclosingPosition,
+            s"""Cannot resolve generic type(s) for `$x`
+               |Please provide a custom implicitly accessible json.Schema for it.
+               |""".stripMargin)
       }
+    }
 
-//    implicit class TreeOps(private val x: Tree) {
+    //    implicit class TreeOps(private val x: Tree) {
 //
 //      def fold[A](ifEmpty: => A)(fn: Tree => A): A = if (x.isEmpty) ifEmpty else fn(x)
 //    }
@@ -94,7 +101,7 @@ object SchemaMacro {
           if (x.typeSymbol.isClass) {
             val leafs = x.typeSymbol.asClass.knownDirectSubclasses.toSeq flatMap { s =>
               val cs = s.asClass
-              val subTpe = if (cs.typeParams.isEmpty) cs.toType else substituteTypes(cs.toType, cs.typeParams, x.typeArgs)
+              val subTpe = if (cs.typeParams.isEmpty) cs.toType else resolveGenericType(cs.toType, cs.typeParams, x.typeArgs)
               if (isSealed(subTpe)) collectRecursively(subTpe)
               else if (isSupportedLeafType(subTpe)) Seq(subTpe)
               else c.abort(c.enclosingPosition, "Only Scala case classes are supported for ADT leaf classes. Please consider using of " +
@@ -180,8 +187,8 @@ object SchemaMacro {
         val subjectCompanion    = lookupCompanionOf(subjectCompanionSym)
 
         def toField(fieldSym: TermSymbol, i: Int): Field = {
-          val name        = fieldSym.name.toString.trim
-          val fieldTpe    = fieldSym.typeSignature
+          val name        = NameTransformer.decode(fieldSym.name.toString)
+          val fieldTpe    = fieldSym.typeSignature.dealias // In(tpe).dealias
           val isOption    = fieldTpe <:< optionTpe
           val hasDefault  = fieldSym.isParamWithDefault
           val toV         = c.inferImplicitValue(appliedType(toValueTpe, fieldTpe))
@@ -194,29 +201,39 @@ object SchemaMacro {
           } else
             None
 
-          val effectiveType =
-            if (isOption) fieldTpe.typeArgs.head
-//            else if (fieldTpe.typeArgs.nonEmpty && fieldTpe.typeSymbol.isClass) {
-//              c.info(c.enclosingPosition, s"FIELD: name=$name, types substituted", force = true)
-//              substituteTypes(fieldTpe, fieldTpe.typeSymbol.asClass.typeParams, fieldTpe.typeArgs)
-//            }
-            else fieldTpe
+          def effectiveType = if (tpe.typeArgs.nonEmpty && tpe.typeSymbol.isClass) {
+            resolveGenericType(
+              fieldTpe,
+              tpe.typeSymbol.asClass.typeParams,
+              tpe.typeArgs)
+          } else
+            fieldTpe
 
-          c.info(c.enclosingPosition, s"FIELD: name=$name, type: $effectiveType", force = true)
+          val specifiedType =
+            if (isOption) effectiveType.typeArgs.head
+            else
+              effectiveType
 
           Field(
             name          = TermName(name),
             tpe           = fieldTpe,
-            effectiveTpe  = effectiveType,
+            effectiveTpe  = specifiedType,
             annotations   = annotationMap.getOrElse(name, List.empty),
             default       = default,
             isOption      = isOption)
         }
 
-        val fields = applyMethod(subjectCompanion) flatMap { method =>
-          method.paramLists.headOption map { params =>
-            params.map { _.asTerm }.zipWithIndex map { case (f, i) => toField(f, i) }
-          }
+// This old approach somehow didn't allow type substitution
+// so basically this was not working with generic case classes
+//        val fields = applyMethod(subjectCompanion) flatMap { method =>
+//          method.paramLists.headOption map { params =>
+//            params.map { _.asTerm }.zipWithIndex map { case (f, i) => toField(f, i) }
+//          }
+//        }
+        applyMethod(subjectCompanion)
+
+        val fields = tpe.typeSymbol.asClass.primaryConstructor.asMethod.paramLists.headOption map { params =>
+          params.map { _.asTerm }.zipWithIndex map { case (f, i) => toField(f, i) }
         }
 
         fields getOrElse Seq.empty
@@ -315,7 +332,6 @@ object SchemaMacro {
       }
     }
 
-
     object Implicit {
 
       sealed trait ImplicitSchema
@@ -326,8 +342,8 @@ object SchemaMacro {
       def getOrElse(tpe: Type, gen: => Tree): Tree = {
         // def debug(msg: String): Unit = c.info(c.enclosingPosition, msg, force = true)
 
-        val sType = appliedType(schemaTypeConstructor, tpe).dealias.widen
-        val pType = appliedType(predefTypeConstructor, tpe).dealias.widen
+        val sType = appliedType(schemaTypeConstructor, tpe) // .dealias.widen
+        val pType = appliedType(predefTypeConstructor, tpe) // .dealias.widen
 
         // search implicit scope for a schema
         //
@@ -382,7 +398,8 @@ object SchemaMacro {
 
     val out = resolve(subject, Nil)
 
-    // c.info(c.enclosingPosition, show(out), force = false)
+    if (c.settings.contains("print-jsonschema-code"))
+     c.info(c.enclosingPosition, show(out), force = false)
 
     c.Expr[json.Schema[T]](out)
   }
