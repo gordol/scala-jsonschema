@@ -268,6 +268,7 @@ lazy val root = { project in file(".") }.aggregate(
   parser,
   `joda-time`,
   `cats`,
+  `refined`,
   `play-json`,
   `circe-json`,
   `spray-json`,
