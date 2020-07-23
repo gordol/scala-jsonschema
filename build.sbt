@@ -272,6 +272,7 @@ lazy val root = { project in file(".") }
     `cats`,
     `play-json`,
     `circe-json`,
+    `refined`,
     `spray-json`,
     `json4s-json`,
     `u-json`)
