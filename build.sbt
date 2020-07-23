@@ -7,13 +7,13 @@ publishTo in ThisBuild := sonatypePublishTo.value
 
 lazy val commonSettings = Seq(
 
-  organization := "com.github.andyglow",
+  organization := "com.github.gordol",
 
-  homepage := Some(new URL("http://github.com/andyglow/scala-jsonschema")),
+  homepage := Some(new URL("http://github.com/gordol/scala-jsonschema")),
 
   startYear := Some(2017),
 
-  organizationName := "andyglow",
+  organizationName := "gordol",
 
   scalaVersion := "2.11.12",
 
@@ -80,27 +80,32 @@ lazy val commonSettings = Seq(
 
   licenses := Seq(("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
 
-  sonatypeProfileName := "com.github.andyglow",
+  sonatypeProfileName := "com.github.gordol",
 
   publishMavenStyle := true,
 
   sonatypeProjectHosting := Some(
     GitHubHosting(
-      "andyglow",
+      "gordol",
       "scala-jsonschema",
-      "andyglow@gmail.com")),
+      "linuxinit@gmail.com")),
 
   scmInfo := Some(
     ScmInfo(
-      url("https://github.com/andyglow/scala-jsonschema"),
-      "scm:git@github.com:andyglow/scala-jsonschema.git")),
+      url("https://github.com/gordol/scala-jsonschema"),
+      "scm:git@github.com:gordol/scala-jsonschema.git")),
 
   developers := List(
     Developer(
       id    = "andyglow",
       name  = "Andriy Onyshchuk",
       email = "andyglow@gmail.com",
-      url   = url("https://ua.linkedin.com/in/andyglow"))),
+      url   = url("https://ua.linkedin.com/in/andyglow")),
+    Developer(
+      id    = "gordol",
+      name  = "Gordo Lowrey",
+      email = "linuxinit@gmail.com",
+      url   = url("https://linkedin.com/in/gordol"))),
 
   releaseCrossBuild := true,
 
